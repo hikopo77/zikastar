@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f2ee">
+<title>字卡传讯 · 极简版</title>
+<style>
+  :root{
+    --ink:#332d2f;
+    --ink-2:#6b6165;
+    --muted:#a89ea1;
+    --line:rgba(0,0,0,.065);
+    --rose:#d99a9f;
+    --safe-top:env(safe-area-inset-top);
+    --safe-bottom:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+    color:var(--ink);
+    background:#ece6e1;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;height:100dvh;
+  }
+  img{display:block;}
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea,select{font-family:inherit;}
+
+  #app{
+    position:relative;
+    width:min(100%,520px);
+    height:100dvh;
+    overflow:hidden;
+    background:#f7f2ee;
+    isolation:isolate;
+    display:flex;flex-direction:column;
+    --bubble-scale:1;
+    --bubble-font:15px;
+    --bubble-pad-y:11px;
+    --bubble-pad-x:15px;
+    --bubble-gap:10px;
+  }
+  @media (min-width:600px){
+    body{padding:22px;}
+    #app{
+      height:min(100%,880px);
+      border-radius:34px;
+      box-shadow:0 34px 90px rgba(90,60,60,.22), 0 2px 0 rgba(255,255,255,.6) inset;
+    }
+  }
+
+  /* ---------- 背景 ---------- */
+  .wallpaper{
+    position:absolute;inset:0;z-index:0;
+    background:
+      radial-gradient(120% 78% at 16% -6%, #ffe6ea 0%, rgba(255,230,234,0) 62%),
+      radial-gradient(105% 70% at 96% 14%, #e7e2ff 0%, rgba(231,226,255,0) 58%),
+      radial-gradient(125% 90% at 62% 108%, #ffe9d9 0%, rgba(255,233,217,0) 62%),
+      #f8f4f0;
+    background-size:cover;background-position:center;
+  }
+  .veil{
+    position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:linear-gradient(180deg,rgba(255,255,255,.52) 0%,rgba(255,255,255,.18) 34%,rgba(255,255,255,.5) 100%);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar{
+    position:relative;z-index:3;
+    display:flex;align-items:center;gap:10px;
+    padding:calc(14px + var(--safe-top)) 14px 14px;
+    background:rgba(255,255,255,.66);
+    backdrop-filter:blur(22px) saturate(170%);
+    -webkit-backdrop-filter:blur(22px) saturate(170%);
+    border-bottom:1px solid var(--line);
+  }
+  .who{flex:1;min-width:0;display:flex;align-items:center;gap:10px;}
+  .avatar{
+    width:42px;height:42px;flex:none;border-radius:50%;
+    overflow:hidden;position:relative;
+    background:linear-gradient(140deg,#f6d9da,#e6dcf6);
+    display:grid;place-items:center;
+    box-shadow:0 3px 12px rgba(150,110,120,.22), 0 0 0 2px rgba(255,255,255,.85);
+  }
+  .avatar img{width:100%;height:100%;object-fit:cover;}
+  .avatar span{font-size:17px;color:#b98d95;}
+  .status-dot{
+    position:absolute;right:0;bottom:1px;
+    width:11px;height:11px;border-radius:50%;
+    background:#7ec98f;border:2px solid #fff;
+    opacity:0;transition:opacity .2s;
+  }
+  .status-dot.on{opacity:1;background:#e0a05a;}
+  .who-text{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;}
+  .who-name{
+    display:flex;align-items:baseline;gap:6px;max-width:100%;
+    font-size:15.5px;font-weight:600;letter-spacing:.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .who-name .note{
+    font-size:11.5px;font-weight:400;color:var(--muted);
+    letter-spacing:.02em;flex:none;overflow:hidden;text-overflow:ellipsis;
+  }
+  .sub-line{margin-top:3px;font-size:11.5px;color:var(--muted);letter-spacing:.06em;}
+  .sub-line.live{color:#c98a4a;}
+  .actions{display:flex;gap:4px;flex:none;}
+  .icon-btn{
+    width:36px;height:36px;border:none;border-radius:50%;
+    background:rgba(255,255,255,.7);
+    color:var(--ink-2);
+    display:grid;place-items:center;
+    transition:.2s;
+    box-shadow:0 1px 4px rgba(0,0,0,.05);
+    flex:none;
+  }
+  .icon-btn:hover{background:#fff;color:var(--ink);transform:translateY(-1px);}
+  .icon-btn:active{transform:scale(.94);}
+  .icon-btn svg{width:17px;height:17px;}
+
+  /* ---------- 消息区 ---------- */
+  .messages{
+    position:relative;z-index:2;
+    flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    padding:20px 14px 12px;
+    display:flex;flex-direction:column;gap:var(--bubble-gap,10px);
+    scrollbar-width:none;
+  }
+  .messages::-webkit-scrollbar{width:0;height:0;}
+
+  .msg{display:flex;align-items:flex-end;gap:8px;max-width:86%;min-width:0;}
+  .msg.anim{animation:pop .34s cubic-bezier(.22,.9,.3,1.15) both;}
+  @keyframes pop{
+    from{opacity:0;transform:translateY(10px) scale(.965);}
+    to{opacity:1;transform:none;}
+  }
+  .msg.them{align-self:flex-start;}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse;}
+
+  /* 系统消息（通话记录） */
+  .msg.system{align-self:center;max-width:92%;justify-content:center;}
+  .msg.system .msg-system-text{
+    background:rgba(0,0,0,.055);
+    color:var(--muted);
+    font-size:11.5px;line-height:1.5;
+    padding:5px 14px;border-radius:999px;
+    letter-spacing:.04em;
+    white-space:normal;word-break:break-word;text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .msg-avatar{
+    width:32px;height:32px;flex:none;border-radius:50%;
+    overflow:hidden;display:grid;place-items:center;
+    background:linear-gradient(140deg,#f6d9da,#e6dcf6);
+    box-shadow:0 2px 8px rgba(150,110,120,.16);
+    font-size:11.5px;color:#b98d95;
+    user-select:none;-webkit-user-select:none;
+  }
+  .msg-avatar img{width:100%;height:100%;object-fit:cover;}
+  #app.no-avatars .msg-avatar{display:none;}
+
+  .msg-body{display:flex;flex-direction:column;min-width:0;}
+  .msg.me .msg-body{align-items:flex-end;}
+  .msg.them .msg-body{align-items:flex-start;}
+
+  .bubble{
+    max-width:100%;
+    padding:var(--bubble-pad-y,11px) var(--bubble-pad-x,15px);
+    font-size:var(--bubble-font,15px);line-height:1.55;letter-spacing:.01em;
+    white-space:pre-wrap;word-break:break-word;
+    border-radius:20px;
+  }
+  .msg.them .bubble{
+    background:rgba(255,255,255,.94);
+    color:var(--ink);
+    border-bottom-left-radius:7px;
+    box-shadow:0 4px 16px rgba(120,90,95,.10), 0 0 0 1px rgba(255,255,255,.7);
+  }
+  .msg.me .bubble{
+    background:linear-gradient(135deg,#e5aab0,#cf8791);
+    color:#fff;
+    border-bottom-right-radius:7px;
+    box-shadow:0 8px 20px rgba(199,131,141,.34);
+  }
+
+  .msg-meta{
+    display:flex;align-items:center;gap:7px;
+    margin-top:5px;padding:0 5px;
+    font-size:10.5px;line-height:1.3;letter-spacing:.04em;
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+    user-select:none;-webkit-user-select:none;
+    white-space:nowrap;
+  }
+
+  .typing{display:flex;gap:5px;align-items:center;padding:14px 17px;}
+  .typing i{width:6px;height:6px;border-radius:50%;background:#c3b6ba;animation:blink 1.25s infinite ease-in-out;}
+  .typing i:nth-child(2){animation-delay:.16s;}
+  .typing i:nth-child(3){animation-delay:.32s;}
+  @keyframes blink{
+    0%,62%,100%{opacity:.32;transform:translateY(0);}
+    30%{opacity:1;transform:translateY(-3.5px);}
+  }
+
+  /* ---------- 空状态 ---------- */
+  .empty{
+    position:absolute;left:0;right:0;top:64px;bottom:96px;z-index:2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;pointer-events:none;transition:opacity .4s;
+  }
+  .empty.hidden{opacity:0;}
+  .empty-mark{
+    width:56px;height:56px;border-radius:50%;
+    display:grid;place-items:center;font-size:20px;color:#c39aa1;
+    background:rgba(255,255,255,.62);
+    box-shadow:0 6px 22px rgba(150,110,120,.14);
+  }
+  .empty p{margin:0;text-align:center;font-size:13px;line-height:1.9;letter-spacing:.05em;color:#a79b9e;}
+
+  /* ---------- 输入区 ---------- */
+  .composer{
+    position:relative;z-index:3;
+    display:flex;align-items:flex-end;gap:8px;
+    padding:11px 12px calc(11px + var(--safe-bottom));
+    background:rgba(255,255,255,.72);
+    backdrop-filter:blur(22px) saturate(170%);
+    -webkit-backdrop-filter:blur(22px) saturate(170%);
+    border-top:1px solid var(--line);
+  }
+  .composer textarea{
+    flex:1;min-width:0;resize:none;border:none;outline:none;
+    background:rgba(0,0,0,.045);
+    border-radius:20px;padding:11px 16px;
+    font:inherit;font-size:15px;line-height:1.45;color:var(--ink);
+    max-height:118px;transition:background .2s;
+  }
+  .composer textarea::placeholder{color:#b5aaad;}
+  .composer textarea:focus{background:rgba(0,0,0,.065);}
+  .send-btn{
+    flex:none;width:42px;height:42px;border-radius:50%;border:none;
+    background:linear-gradient(135deg,#e0a2a8,#c9808b);
+    color:#fff;display:grid;place-items:center;
+    box-shadow:0 6px 16px rgba(199,131,141,.38);
+    transition:transform .18s, box-shadow .2s;
+  }
+  .send-btn svg{width:19px;height:19px;}
+  .send-btn:hover{transform:translateY(-1px);box-shadow:0 9px 20px rgba(199,131,141,.45);}
+  .send-btn:active{transform:scale(.92);}
+
+  /* ---------- 覆盖层 ---------- */
+  .layer{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    overflow:hidden;background:#faf7f4;
+    z-index:40;
+    transform:translateX(100%);
+    transition:transform .42s cubic-bezier(.4,0,.2,1);
+    will-change:transform;
+  }
+  .layer.open{transform:translateX(0);}
+  .layer.dark{background:#1a1618;}
+
+  .app-bar{
+    display:flex;align-items:center;gap:12px;
+    padding:calc(16px + var(--safe-top)) 18px 14px;
+    background:rgba(255,255,255,.78);
+    backdrop-filter:blur(22px) saturate(170%);
+    -webkit-backdrop-filter:blur(22px) saturate(170%);
+    border-bottom:1px solid var(--line);
+    position:relative;z-index:2;
+  }
+  .app-bar h2{margin:0;font-size:16.5px;font-weight:600;letter-spacing:.03em;flex:1;}
+  .app-bar .sub{display:block;font-size:11.5px;color:var(--muted);letter-spacing:.04em;margin-top:2px;font-weight:400;}
+  .round-btn{
+    width:36px;height:36px;border-radius:50%;border:none;flex:none;
+    background:rgba(0,0,0,.05);color:var(--ink-2);
+    display:grid;place-items:center;transition:.2s;
+  }
+  .round-btn:hover{background:rgba(0,0,0,.1);color:var(--ink);}
+  .round-btn:active{transform:scale(.92);}
+  .round-btn svg{width:17px;height:17px;}
+
+  .app-body{
+    flex:1;min-height:0;overflow-y:auto;padding:18px;
+    scrollbar-width:none;position:relative;z-index:1;
+  }
+  .app-body::-webkit-scrollbar{width:0;}
+
+  /* ---------- 设置 ---------- */
+  .set-group{
+    background:#fff;border-radius:20px;
+    padding:4px 16px;margin-bottom:16px;
+    box-shadow:0 3px 16px rgba(120,90,95,.07);
+  }
+  .set-row{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:14px;padding:15px 0;border-bottom:1px solid var(--line);
+  }
+  .set-row:last-child{border-bottom:none;}
+  .set-row .label{font-size:14px;color:var(--ink);letter-spacing:.02em;flex:none;}
+  .set-row .label small{display:block;font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.03em;font-weight:400;}
+  .set-row input[type=text],
+  .set-row input[type=number]{
+    width:100%;max-width:180px;text-align:right;
+    border:none;outline:none;background:transparent;
+    font-size:14.5px;color:var(--ink-2);letter-spacing:.02em;padding:4px 0;
+  }
+  .set-row input:focus{color:var(--ink);}
+  .set-row .num-pair{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+  .set-row .num-pair input{max-width:70px;text-align:center;background:rgba(0,0,0,.04);border-radius:10px;padding:7px 0;}
+  .set-row .num-pair em{font-style:normal;color:var(--muted);font-size:12px;}
+
+  .switch{position:relative;width:46px;height:27px;flex:none;}
+  .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2;}
+  .switch i{position:absolute;inset:0;border-radius:999px;background:rgba(0,0,0,.14);transition:.26s;}
+  .switch i::after{
+    content:"";position:absolute;top:3px;left:3px;
+    width:21px;height:21px;border-radius:50%;background:#fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.22);
+    transition:.26s cubic-bezier(.4,0,.2,1);
+  }
+  .switch input:checked + i{background:var(--rose);}
+  .switch input:checked + i::after{transform:translateX(19px);}
+
+  .pill-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    border:none;border-radius:999px;padding:10px 18px;
+    font-size:13px;font-weight:500;letter-spacing:.03em;transition:.2s;
+  }
+  .pill-btn.gray{background:rgba(0,0,0,.05);color:var(--ink-2);}
+  .pill-btn.gray:hover{background:rgba(0,0,0,.09);color:var(--ink);}
+  .pill-btn.warn{background:#fdecee;color:#c4586a;}
+  .pill-btn.warn:hover{background:#fbdde1;}
+  .pill-btn.full{width:100%;}
+  .pill-btn:active{transform:scale(.97);}
+
+  .range-wrap{display:flex;align-items:center;gap:10px;flex:1;justify-content:flex-end;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    width:140px;height:4px;border-radius:2px;
+    background:rgba(0,0,0,.12);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:20px;height:20px;border-radius:50%;background:#fff;border:none;
+    box-shadow:0 1px 6px rgba(0,0,0,.28);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:20px;height:20px;border-radius:50%;background:#fff;border:none;
+    box-shadow:0 1px 6px rgba(0,0,0,.28);
+  }
+  .range-val{min-width:44px;text-align:right;font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+
+  .cards-editor{
+    width:100%;min-height:180px;resize:vertical;
+    border:none;outline:none;background:#fff;
+    border-radius:18px;padding:16px;
+    font:inherit;font-size:14.5px;line-height:2;color:var(--ink);
+    letter-spacing:.02em;
+    box-shadow:0 3px 16px rgba(120,90,95,.07);
+  }
+  .cards-editor::placeholder{color:#bbb0b3;}
+
+  .mini-btn-row{
+    display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;
+  }
+  .mini-btn-row .pill-btn{flex:1;min-width:calc(33% - 6px);padding:9px 10px;font-size:12.5px;}
+
+  .css-editor{
+    width:100%;min-height:110px;resize:vertical;
+    border:none;outline:none;background:rgba(0,0,0,.04);
+    border-radius:14px;padding:13px 14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12.5px;line-height:1.7;color:var(--ink);
+  }
+  .css-editor::placeholder{color:#bbb0b3;}
+
+  .foot-note{
+    font-size:12px;line-height:1.9;color:var(--muted);
+    letter-spacing:.03em;text-align:center;padding:4px 0 10px;margin:0;
+  }
+
+  /* ---------- 视频通话 ---------- */
+  #videoLayer{background:linear-gradient(170deg,#241d20 0%,#1a1618 55%,#241a1e 100%);}
+  .call-screen{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 30px calc(40px + var(--safe-bottom));
+    color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;
+  }
+  .call-screen.show{opacity:1;pointer-events:auto;}
+  .call-glow{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:340px;height:340px;border-radius:50%;
+    background:radial-gradient(circle,rgba(217,154,159,.3) 0%,rgba(217,154,159,0) 68%);
+    filter:blur(24px);pointer-events:none;
+  }
+  .call-avatar{
+    width:132px;height:132px;border-radius:50%;
+    overflow:hidden;position:relative;
+    background:linear-gradient(140deg,#f6d9da,#e6dcf6);
+    display:grid;place-items:center;
+    box-shadow:0 0 0 6px rgba(255,255,255,.08), 0 18px 50px rgba(0,0,0,.45);
+    margin-bottom:28px;z-index:2;
+  }
+  .call-avatar img{width:100%;height:100%;object-fit:cover;}
+  .call-avatar span{font-size:46px;color:#b98d95;}
+  .call-avatar.pulse{animation:pulseRing 2s infinite;}
+  @keyframes pulseRing{
+    0%{box-shadow:0 0 0 6px rgba(255,255,255,.08), 0 0 0 0 rgba(217,154,159,.5), 0 18px 50px rgba(0,0,0,.45);}
+    70%{box-shadow:0 0 0 6px rgba(255,255,255,.08), 0 0 0 26px rgba(217,154,159,0), 0 18px 50px rgba(0,0,0,.45);}
+    100%{box-shadow:0 0 0 6px rgba(255,255,255,.08), 0 0 0 0 rgba(217,154,159,0), 0 18px 50px rgba(0,0,0,.45);}
+  }
+  .call-name{font-size:23px;font-weight:600;letter-spacing:.05em;margin:0 0 10px;z-index:2;}
+  .call-sub{font-size:13px;color:rgba(255,255,255,.5);letter-spacing:.14em;margin:0 0 52px;z-index:2;}
+  .call-actions{display:flex;gap:56px;z-index:2;}
+  .call-btn{width:70px;height:70px;border-radius:50%;border:none;display:grid;place-items:center;transition:.2s;}
+  .call-btn svg{width:28px;height:28px;}
+  .call-btn:active{transform:scale(.9);}
+  .call-btn.decline{background:linear-gradient(135deg,#f0707e,#d84f62);color:#fff;box-shadow:0 10px 26px rgba(216,79,98,.4);}
+  .call-btn.accept{
+    background:linear-gradient(135deg,#7bd48e,#4eb466);color:#fff;
+    box-shadow:0 10px 26px rgba(78,180,102,.4);animation:accepted 1.6s infinite;
+  }
+  @keyframes accepted{
+    0%,100%{box-shadow:0 10px 26px rgba(78,180,102,.4),0 0 0 0 rgba(78,180,102,.4);}
+    60%{box-shadow:0 10px 26px rgba(78,180,102,.4),0 0 0 26px rgba(78,180,102,0);}
+  }
+  .call-btn.hangup{background:linear-gradient(135deg,#f0707e,#d84f62);color:#fff;box-shadow:0 10px 26px rgba(216,79,98,.4);}
+
+  .call-top{position:absolute;top:calc(24px + var(--safe-top));left:0;right:0;text-align:center;z-index:3;}
+  .call-top .nm{font-size:15px;font-weight:500;letter-spacing:.06em;}
+  .call-top .tm{font-size:12px;color:rgba(255,255,255,.5);letter-spacing:.14em;margin-top:6px;}
+
+  .self-view{
+    position:absolute;right:20px;bottom:130px;
+    width:84px;height:112px;border-radius:16px;
+    background:linear-gradient(160deg,#3a3034,#241d20);
+    border:1.5px solid rgba(255,255,255,.14);
+    overflow:hidden;display:grid;place-items:center;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);z-index:3;
+  }
+  .self-view span{font-size:11px;color:rgba(255,255,255,.35);letter-spacing:.1em;}
+  .self-view img{width:100%;height:100%;object-fit:cover;}
+
+  .call-bottom{
+    position:absolute;bottom:calc(44px + var(--safe-bottom));left:0;right:0;
+    display:flex;justify-content:center;gap:34px;z-index:3;
+  }
+  .mini-btn{
+    width:52px;height:52px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.1);color:#fff;
+    display:grid;place-items:center;
+    backdrop-filter:blur(10px);transition:.2s;
+  }
+  .mini-btn:hover{background:rgba(255,255,255,.18);}
+  .mini-btn:active{transform:scale(.92);}
+  .mini-btn.off{background:rgba(255,255,255,.32);}
+  .mini-btn svg{width:21px;height:21px;}
+
+  /* ---------- 通话胶囊 ---------- */
+  .pip{
+    position:absolute;z-index:80;
+    top:calc(72px + var(--safe-top));right:16px;
+    display:flex;align-items:center;gap:9px;
+    background:rgba(30,24,27,.93);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-radius:999px;padding:7px 9px 7px 7px;
+    box-shadow:0 12px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.08) inset;
+    cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;
+    transform:scale(.5);opacity:0;pointer-events:none;
+    transition:transform .32s cubic-bezier(.34,1.4,.64,1), opacity .26s;
+    max-width:78%;
+  }
+  .pip.show{transform:scale(1);opacity:1;pointer-events:auto;}
+  .pip-av{
+    width:36px;height:36px;border-radius:50%;flex:none;
+    overflow:hidden;position:relative;
+    background:linear-gradient(140deg,#f6d9da,#e6dcf6);
+    display:grid;place-items:center;
+    box-shadow:0 0 0 2px rgba(255,255,255,.15);
+  }
+  .pip-av img{width:100%;height:100%;object-fit:cover;}
+  .pip-av span{font-size:14px;color:#b98d95;}
+  .pip-info{color:#fff;font-size:12px;line-height:1.3;min-width:0;}
+  .pip-info b{
+    display:block;font-size:12.5px;font-weight:600;letter-spacing:.03em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;
+  }
+  .pip-timer{color:rgba(255,255,255,.55);font-size:10.5px;font-variant-numeric:tabular-nums;letter-spacing:.06em;}
+  .pip-end{
+    width:32px;height:32px;border-radius:50%;border:none;flex:none;
+    background:linear-gradient(135deg,#f0707e,#d84f62);
+    color:#fff;display:grid;place-items:center;
+    box-shadow:0 4px 12px rgba(216,79,98,.45);transition:.15s;
+  }
+  .pip-end:active{transform:scale(.9);}
+  .pip-end svg{width:14px;height:14px;}
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:absolute;left:50%;bottom:96px;z-index:90;
+    transform:translate(-50%,14px);
+    background:rgba(45,38,40,.9);color:#fff;
+    font-size:13px;letter-spacing:.04em;
+    padding:10px 20px;border-radius:999px;
+    opacity:0;pointer-events:none;
+    transition:.3s cubic-bezier(.2,.9,.3,1.1);
+    backdrop-filter:blur(10px);
+    white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="wallpaper" id="wallpaper"></div>
+  <div class="veil"></div>
+
+  <header class="topbar">
+    <div class="who">
+      <span class="avatar" id="avatarBox">
+        <img id="avatarImg" alt="" hidden>
+        <span id="avatarFallback">✦</span>
+        <i class="status-dot" id="statusDot"></i>
+      </span>
+      <span class="who-text">
+        <span class="who-name"><span id="charNameEl">沈砚</span><span class="note" id="noteEl"></span></span>
+        <span class="sub-line" id="subLine">在线</span>
+      </span>
+    </div>
+    <div class="actions">
+      <button class="icon-btn" id="btnVideoCall" aria-label="视频通话" title="视频通话">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="6.5" width="13" height="11" rx="3"/>
+          <path d="M15.5 10.5 21.5 7.5v9l-6-3z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.3 14.9a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3.2a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3.2a2 2 1 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="messages" id="messages"></main>
+
+  <div class="empty" id="empty">
+    <div class="empty-mark">✦</div>
+    <p>把想说的话发出去<br>看看今天会抽到什么字卡</p>
+  </div>
+
+  <footer class="composer">
+    <textarea id="input" rows="1" placeholder="说点什么…" autocomplete="off"></textarea>
+    <button class="send-btn" id="sendBtn" aria-label="发送">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.5 12h14.5"/><path d="M13 5.5 19.5 12 13 18.5"/>
+      </svg>
+    </button>
+  </footer>
+
+  <!-- ========== 设置 ========== -->
+  <div class="layer" id="settingsLayer">
+    <div class="app-bar">
+      <button class="round-btn" data-back aria-label="返回">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+      </button>
+      <h2>设置<span class="sub">让 TA 更像 TA</span></h2>
+      <div style="width:36px;"></div>
+    </div>
+
+    <div class="app-body">
+
+      <div class="set-group">
+        <div class="set-row">
+          <div class="label">名字</div>
+          <input type="text" id="setName" maxlength="20" placeholder="TA 的名字">
+        </div>
+        <div class="set-row">
+          <div class="label">备注<small>显示在名字旁边</small></div>
+          <input type="text" id="setNote" maxlength="16" placeholder="例如：我的月亮">
+        </div>
+        <div class="set-row">
+          <div class="label">TA 的头像</div>
+          <label class="pill-btn gray" style="cursor:pointer;">
+            更换
+            <input type="file" id="setAvatar" accept="image/*" hidden>
+          </label>
+        </div>
+        <div class="set-row">
+          <div class="label">我的头像</div>
+          <label class="pill-btn gray" style="cursor:pointer;">
+            更换
+            <input type="file" id="setMyAvatar" accept="image/*" hidden>
+          </label>
+        </div>
+        <div class="set-row">
+          <div class="label">聊天壁纸</div>
+          <div style="display:flex;gap:8px;">
+            <label class="pill-btn gray" style="cursor:pointer;">
+              更换
+              <input type="file" id="setWall" accept="image/*" hidden>
+            </label>
+            <button class="pill-btn gray" id="clearWall" type="button">默认</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-row">
+          <div class="label">回复等待<small>单位「秒」，范围 1 ~ 600</small></div>
+          <div class="num-pair">
+            <input type="number" id="setMin" min="1" max="600" step="0.5">
+            <em>~</em>
+            <input type="number" id="setMax" min="1" max="600" step="0.5">
+            <em>秒</em>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="label">每次回复条数<small>TA 会连发几条字卡</small></div>
+          <div class="num-pair">
+            <input type="number" id="setMinReply" min="1" max="6" step="1">
+            <em>~</em>
+            <input type="number" id="setMaxReply" min="1" max="6" step="1">
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="label">显示「正在输入」</div>
+          <label class="switch">
+            <input type="checkbox" id="setTyping">
+            <i></i>
+          </label>
+        </div>
+        <div class="set-row">
+          <div class="label">显示聊天头像</div>
+          <label class="switch">
+            <input type="checkbox" id="setShowAvatars">
+            <i></i>
+          </label>
+        </div>
+        <div class="set-row">
+          <div class="label">显示消息时间</div>
+          <label class="switch">
+            <input type="checkbox" id="setTimestamp">
+            <i></i>
+          </label>
+        </div>
+        <div class="set-row">
+          <div class="label">气泡大小</div>
+          <div class="range-wrap">
+            <input type="range" id="setBubbleScale" min="70" max="160" step="5">
+            <span class="range-val" id="bubbleScaleVal">100%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-row">
+          <div class="label">主动视频通话<small>TA 在聊天中主动打来的概率</small></div>
+          <div class="range-wrap">
+            <input type="range" id="setVideoPct" min="0" max="100" step="1">
+            <span class="range-val" id="videoPctVal">4%</span>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="label">呼叫等待时间<small>我打过去后，TA 多久接起（秒）</small></div>
+          <div class="num-pair">
+            <input type="number" id="setCallWaitMin" min="1" max="60" step="1">
+            <em>~</em>
+            <input type="number" id="setCallWaitMax" min="1" max="60" step="1">
+            <em>秒</em>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="label">对方拒接概率<small>我打过去时 TA 拒绝接听的概率</small></div>
+          <div class="range-wrap">
+            <input type="range" id="setCallRejectPct" min="0" max="100" step="1">
+            <span class="range-val" id="callRejectPctVal">25%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-group" style="padding:16px;">
+        <div class="label" style="font-size:14px;letter-spacing:.02em;margin-bottom:4px;">回复字卡</div>
+        <small style="display:block;font-size:11px;color:var(--muted);letter-spacing:.03em;margin-bottom:12px;">
+          每行一张，TA 会从这里面随机抽
+        </small>
+        <textarea class="cards-editor" id="cardsEditor" spellcheck="false" placeholder="每行一张字卡…"></textarea>
+        <div id="cardsCount" style="font-size:11.5px;color:var(--muted);letter-spacing:.03em;margin-top:10px;"></div>
+
+        <div class="mini-btn-row">
+          <label class="pill-btn gray" style="cursor:pointer;">
+            导入字卡
+            <input type="file" id="importCards" accept=".txt,text/plain" hidden>
+          </label>
+          <button class="pill-btn gray" id="exportCards" type="button">导出字卡</button>
+          <button class="pill-btn gray" id="dedupeCards" type="button">一键去重</button>
+        </div>
+      </div>
+
+      <div class="set-group" style="padding:16px;">
+        <div class="label" style="font-size:14px;letter-spacing:.02em;margin-bottom:4px;">自定义气泡 CSS</div>
+        <small style="display:block;font-size:11px;color:var(--muted);letter-spacing:.03em;margin-bottom:12px;">
+          直接写 CSS 覆盖气泡外观，优先级最高
+        </small>
+        <textarea class="css-editor" id="setCustomCSS" spellcheck="false" placeholder="例如：&#10;.msg.them .bubble { border-radius:4px; background:#fff !important; }&#10;.msg.me .bubble { background:#222 !important; box-shadow:none !important; }"></textarea>
+        <div class="mini-btn-row">
+          <button class="pill-btn gray" id="clearCustomCSS" type="button">清除自定义 CSS</button>
+        </div>
+      </div>
+
+      <div class="set-group" style="padding:16px;">
+        <div class="label" style="font-size:14px;letter-spacing:.02em;margin-bottom:12px;">数据备份</div>
+        <button class="pill-btn gray full" id="exportAll" type="button" style="margin-bottom:8px;">导出全部数据（JSON 备份）</button>
+        <button class="pill-btn gray full" id="importAll" type="button">导入全部数据（JSON 恢复）</button>
+        <input type="file" id="importAllFile" accept=".json,application/json" hidden>
+      </div>
+
+      <div class="set-group">
+        <button class="pill-btn gray full" id="clearChat" type="button" style="margin:8px 0;">清空聊天记录</button>
+        <button class="pill-btn warn full" id="resetAll" type="button" style="margin:0 0 8px;">恢复全部默认</button>
+      </div>
+
+      <p class="foot-note">所有内容只保存在本机浏览器，不会上传</p>
+    </div>
+  </div>
+
+  <!-- ========== 视频通话 ========== -->
+  <div class="layer dark" id="videoLayer">
+
+    <!-- 来电 -->
+    <div class="call-screen" id="callIncoming">
+      <div class="call-glow"></div>
+      <div class="call-avatar pulse" id="incomingAvatar">
+        <img hidden alt="">
+        <span>✦</span>
+      </div>
+      <h2 class="call-name" id="incomingName">沈砚</h2>
+      <p class="call-sub">视频通话邀请…</p>
+      <div class="call-actions">
+        <button class="call-btn decline" id="btnDecline" aria-label="拒绝">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg);">
+            <path d="M4.5 12h14.5"/><path d="M13 5.5 19.5 12 13 18.5"/>
+          </svg>
+        </button>
+        <button class="call-btn accept" id="btnAccept" aria-label="接听">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 呼出 -->
+    <div class="call-screen" id="callOutgoing">
+      <div class="call-glow"></div>
+      <div class="call-avatar pulse" id="outgoingAvatar">
+        <img hidden alt="">
+        <span>✦</span>
+      </div>
+      <h2 class="call-name" id="outgoingName">沈砚</h2>
+      <p class="call-sub" id="outgoingSub">正在呼叫…</p>
+      <div class="call-actions">
+        <button class="call-btn hangup" id="btnCancelCall" aria-label="挂断">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg);">
+            <path d="M4.5 12h14.5"/><path d="M13 5.5 19.5 12 13 18.5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 通话中 -->
+    <div class="call-screen" id="callActive">
+      <div class="call-top">
+        <div class="nm" id="activeName">沈砚</div>
+        <div class="tm" id="callTime">00:00</div>
+      </div>
+
+      <div class="call-glow"></div>
+      <div class="call-avatar" id="activeAvatar">
+        <img hidden alt="">
+        <span>✦</span>
+      </div>
+      <div style="text-align:center;z-index:2;">
+        <p style="margin:0;font-size:13px;color:rgba(255,255,255,.45);letter-spacing:.12em;">通话中</p>
+      </div>
+
+      <div class="self-view"><img id="selfViewImg" alt="" hidden><span id="selfViewFallback">你</span></div>
+
+      <div class="call-bottom">
+        <button class="mini-btn" id="btnMute" aria-label="静音">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"/>
+            <path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>
+          </svg>
+        </button>
+        <button class="mini-btn" id="btnMinimize" aria-label="最小化">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </button>
+        <button class="call-btn hangup" id="btnHangup" aria-label="挂断">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg);">
+            <path d="M4.5 12h14.5"/><path d="M13 5.5 19.5 12 13 18.5"/>
+          </svg>
+        </button>
+        <button class="mini-btn" id="btnCam" aria-label="摄像头">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2.5" y="6.5" width="13" height="11" rx="3"/>
+            <path d="M15.5 10.5 21.5 7.5v9l-6-3z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通话胶囊 -->
+  <div class="pip" id="pipCall">
+    <span class="pip-av" id="pipAvatar"><img hidden alt=""><span>✦</span></span>
+    <span class="pip-info"><b id="pipName">沈砚</b><span class="pip-timer" id="pipTime">00:00</span></span>
+    <button class="pip-end" id="pipEnd" aria-label="挂断">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(135deg);"><path d="M4.5 12h14.5"/><path d="M13 5.5 19.5 12 13 18.5"/></svg>
+    </button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ================= 默认字卡 ================= */
+  const DEFAULT_CARDS = [
+    '在想你。','嗯，我在。','今天也很喜欢你。','……别熬夜了，快睡。','你说，我听着呢。',
+    '有我在，不怕。','好，都听你的。','想抱抱你，现在就想。','记得好好吃饭。','梦里也要见到我。',
+    '我刚才也在想你。','乖，早点休息。','就这样看着你，也很好。','别皱眉，会变丑的。','你笑起来最好看。',
+    '不管多久，我都等。','嗯？怎么了，说说看。','一直在的，别怕。','把手给我。','外面再冷，回来就暖了。'
+  ];
+
+  const STORE_KEY = 'dreamchat.mini.v1';
+
+  /* ================= 工具 ================= */
+  const $ = id => document.getElementById(id);
+  const appEl = $('app');
+
+  function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+
+  function randInt(a, b){
+    a = Math.ceil(a); b = Math.floor(b);
+    if(b < a){ const t = a; a = b; b = t; }
+    return a + Math.floor(Math.random() * (b - a + 1));
+  }
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+
+  /* ================= 状态 ================= */
+  function defaultState(){
+    return {
+      charName:'沈砚',
+      note:'',
+      avatar:'',
+      myAvatar:'',
+      wallpaper:'',
+      minDelay:2,
+      maxDelay:5,
+      minReplies:1,
+      maxReplies:2,
+      showTyping:true,
+      showAvatars:true,
+      showTimestamp:true,
+      bubbleScale:1,
+      videoFreqPct:4,
+      callWaitMin:4,
+      callWaitMax:10,
+      callRejectPct:25,
+      customCSS:'',
+      cards: DEFAULT_CARDS.slice(),
+      messages:[]
+    };
+  }
+
+  function buildState(p){
+    const s = defaultState();
+    if(!p || typeof p !== 'object' || Array.isArray(p)) return s;
+
+    if(typeof p.charName === 'string' && p.charName.trim()) s.charName = p.charName;
+    if(typeof p.note === 'string') s.note = p.note;
+
+    ['avatar','myAvatar','wallpaper','customCSS'].forEach(k => {
+      if(typeof p[k] === 'string') s[k] = p[k];
+    });
+
+    ['minDelay','maxDelay'].forEach(k => {
+      if(typeof p[k] === 'number' && isFinite(p[k])) s[k] = clamp(p[k], 1, 600);
+    });
+    if(s.minDelay > s.maxDelay){ const t = s.minDelay; s.minDelay = s.maxDelay; s.maxDelay = t; }
+
+    ['minReplies','maxReplies'].forEach(k => {
+      if(typeof p[k] === 'number' && isFinite(p[k])) s[k] = clamp(Math.round(p[k]), 1, 6);
+    });
+    if(s.minReplies > s.maxReplies){ const t = s.minReplies; s.minReplies = s.maxReplies; s.maxReplies = t; }
+
+    ['showTyping','showAvatars','showTimestamp'].forEach(k => {
+      if(typeof p[k] === 'boolean') s[k] = p[k];
+    });
+
+    if(typeof p.bubbleScale === 'number' && isFinite(p.bubbleScale)){
+      s.bubbleScale = clamp(p.bubbleScale, 0.7, 1.6);
+    }
+
+    if(typeof p.videoFreqPct === 'number' && isFinite(p.videoFreqPct)){
+      s.videoFreqPct = clamp(p.videoFreqPct, 0, 100);
+    }
+    ['callWaitMin','callWaitMax'].forEach(k => {
+      if(typeof p[k] === 'number' && isFinite(p[k])) s[k] = clamp(Math.round(p[k]), 1, 60);
+    });
+    if(s.callWaitMin > s.callWaitMax){ const t = s.callWaitMin; s.callWaitMin = s.callWaitMax; s.callWaitMax = t; }
+    if(typeof p.callRejectPct === 'number' && isFinite(p.callRejectPct)){
+      s.callRejectPct = clamp(p.callRejectPct, 0, 100);
+    }
+
+    if(Array.isArray(p.cards)){
+      s.cards = p.cards.map(x => String(x).trim()).filter(Boolean);
+    }
+
+    if(Array.isArray(p.messages)){
+      s.messages = p.messages.map(m => {
+        if(!m || typeof m !== 'object') return null;
+        const role = (m.role === 'me') ? 'me' : (m.role === 'system' ? 'system' : 'them');
+        const text = typeof m.text === 'string' ? m.text : '';
+        if(!text) return null;
+        return { role, text, ts: (typeof m.ts === 'number' && isFinite(m.ts)) ? m.ts : Date.now() };
+      }).filter(Boolean).slice(-400);
+    }
+
+    return s;
+  }
+
+  let state = buildState((() => {
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  })());
+
+  let saveTimer = null;
+  function save(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+      catch(e){ toast('存储空间不足'); }
+    }, 250);
+  }
+
+  /* ================= DOM ================= */
+  const wallpaperEl   = $('wallpaper');
+  const avatarImg     = $('avatarImg');
+  const avatarFallback= $('avatarFallback');
+  const statusDot     = $('statusDot');
+  const charNameEl    = $('charNameEl');
+  const noteEl        = $('noteEl');
+  const subLine       = $('subLine');
+  const messagesEl    = $('messages');
+  const emptyEl       = $('empty');
+  const inputEl       = $('input');
+  const sendBtn       = $('sendBtn');
+  const toastEl       = $('toast');
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  /* ================= 时间格式 ================= */
+  function fmtMsgTime(ts){
+    const d = new Date(ts);
+    const now = new Date();
+    const hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    const sameDay = (a, b) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+    if(sameDay(d, now)) return hm;
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    if(sameDay(d, yest)) return '昨天 ' + hm;
+    if(d.getFullYear() === now.getFullYear()) return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm;
+    return d.getFullYear() + '/' + pad2(d.getMonth() + 1) + '/' + pad2(d.getDate()) + ' ' + hm;
+  }
+
+  /* ================= 图片读取 ================= */
+  function readImage(file, maxSize, mime, quality){
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('读取失败'));
+      fr.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('解析失败'));
+        img.onload = () => {
+          let w = img.naturalWidth, h = img.naturalHeight;
+          const m = Math.max(w, h);
+          if(m > maxSize){
+            const k = maxSize / m;
+            w = Math.round(w * k);
+            h = Math.round(h * k);
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          try{ resolve(c.toDataURL(mime, quality)); }
+          catch(err){ reject(err); }
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  /* ================= 自定义 CSS ================= */
+  function applyCustomCSS(){
+    let tag = document.getElementById('customBubbleCss');
+    if(!tag){
+      tag = document.createElement('style');
+      tag.id = 'customBubbleCss';
+      document.head.appendChild(tag);
+    }
+    tag.textContent = state.customCSS || '';
+  }
+
+  /* ================= 头部 ================= */
+  function displayName(){
+    const n = (state.charName || '').trim();
+    return n || '梦角';
+  }
+
+  function renderHeader(){
+    const name = displayName();
+    const note = (state.note || '').trim();
+
+    charNameEl.textContent = name;
+    noteEl.textContent = note ? ('· ' + note) : '';
+
+    if(state.avatar){
+      avatarImg.src = state.avatar;
+      avatarImg.hidden = false;
+      avatarFallback.hidden = true;
+    }else{
+      avatarImg.hidden = true;
+      avatarImg.removeAttribute('src');
+      avatarFallback.hidden = false;
+      avatarFallback.textContent = name.charAt(0) || '✦';
+    }
+
+    syncCallIdentity();
+  }
+
+  function setStatus(text){
+    if(text){
+      subLine.textContent = text;
+      subLine.classList.add('live');
+      statusDot.classList.add('on');
+    }else{
+      subLine.textContent = '在线';
+      subLine.classList.remove('live');
+      statusDot.classList.remove('on');
+    }
+  }
+
+  function renderWallpaper(){
+    if(state.wallpaper){
+      wallpaperEl.style.backgroundImage = 'url("' + state.wallpaper + '")';
+      wallpaperEl.style.backgroundSize = 'cover';
+      wallpaperEl.style.backgroundPosition = 'center';
+    }else{
+      wallpaperEl.style.backgroundImage = '';
+      wallpaperEl.style.backgroundSize = '';
+      wallpaperEl.style.backgroundPosition = '';
+    }
+  }
+
+  function renderSelfView(){
+    const img = $('selfViewImg'), fb = $('selfViewFallback');
+    if(state.myAvatar){
+      img.src = state.myAvatar;
+      img.hidden = false;
+      fb.hidden = true;
+    }else{
+      img.hidden = true;
+      img.removeAttribute('src');
+      fb.hidden = false;
+    }
+  }
+
+  function applyBubbleSize(){
+    const s = clamp(Number(state.bubbleScale) || 1, 0.7, 1.6);
+    appEl.style.setProperty('--bubble-scale', String(s));
+    appEl.style.setProperty('--bubble-font', (15 * s).toFixed(2) + 'px');
+    appEl.style.setProperty('--bubble-pad-y', (11 * s).toFixed(2) + 'px');
+    appEl.style.setProperty('--bubble-pad-x', (15 * s).toFixed(2) + 'px');
+    appEl.style.setProperty('--bubble-gap', (10 * Math.max(s, 0.85)).toFixed(2) + 'px');
+  }
+
+  function applyAvatars(){
+    appEl.classList.toggle('no-avatars', state.showAvatars === false);
+  }
+
+  /* ================= 消息渲染 ================= */
+  function buildAvatar(role){
+    const av = document.createElement('div');
+    av.className = 'msg-avatar';
+    const src = (role === 'me') ? state.myAvatar : state.avatar;
+    if(src){
+      const img = document.createElement('img');
+      img.src = src; img.alt = '';
+      av.appendChild(img);
+    }else{
+      const sp = document.createElement('span');
+      sp.textContent = (role === 'me') ? '我' : (displayName().charAt(0) || '✦');
+      av.appendChild(sp);
+    }
+    return av;
+  }
+
+  function renderMessageEl(msg, animate){
+    const div = document.createElement('div');
+
+    /* —— 系统消息（通话记录） —— */
+    if(msg.role === 'system'){
+      div.className = 'msg system' + (animate ? ' anim' : '');
+      const span = document.createElement('span');
+      span.className = 'msg-system-text';
+      span.textContent = msg.text || '';
+      div.appendChild(span);
+      messagesEl.appendChild(div);
+      return div;
+    }
+
+    div.className = 'msg ' + (msg.role === 'me' ? 'me' : 'them') + (animate ? ' anim' : '');
+    div.appendChild(buildAvatar(msg.role));
+
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = msg.text;
+    body.appendChild(bubble);
+
+    if(state.showTimestamp !== false && msg.ts){
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      const t = document.createElement('span');
+      t.textContent = fmtMsgTime(msg.ts);
+      meta.appendChild(t);
+      body.appendChild(meta);
+    }
+
+    div.appendChild(body);
+    messagesEl.appendChild(div);
+    return div;
+  }
+
+  function scrollToBottom(smooth){
+    requestAnimationFrame(() => {
+      messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    });
+  }
+
+  function renderAllMessages(){
+    messagesEl.innerHTML = '';
+    typingEl = null;
+    state.messages.forEach(m => renderMessageEl(m, false));
+    emptyEl.classList.toggle('hidden', state.messages.length > 0);
+    scrollToBottom(false);
+  }
+
+  function pushMessage(role, text){
+    if(!text) return;
+    const norm = (role === 'me') ? 'me' : (role === 'system' ? 'system' : 'them');
+    const msg = { role: norm, text, ts: Date.now() };
+    state.messages.push(msg);
+    if(state.messages.length > 400) state.messages.splice(0, state.messages.length - 400);
+
+    renderMessageEl(msg, true);
+    if(typingEl && typingEl.parentNode === messagesEl){
+      messagesEl.appendChild(typingEl);
+    }
+    while(messagesEl.children.length > 401) messagesEl.removeChild(messagesEl.firstChild);
+
+    emptyEl.classList.add('hidden');
+    scrollToBottom(true);
+    save();
+  }
+
+  /* ================= 打字指示 ================= */
+  let typingEl = null;
+
+  function showTyping(){
+    if(state.showTyping === false) return;
+    hideTyping();
+    const el = document.createElement('div');
+    el.className = 'msg them anim';
+    el.appendChild(buildAvatar('them'));
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+    const bub = document.createElement('div');
+    bub.className = 'bubble typing';
+    bub.innerHTML = '<i></i><i></i><i></i>';
+    body.appendChild(bub);
+    el.appendChild(body);
+    messagesEl.appendChild(el);
+    typingEl = el;
+    scrollToBottom(true);
+  }
+
+  function hideTyping(){
+    if(typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+    typingEl = null;
+  }
+
+  /* ================= 字卡 ================= */
+  let lastCard = null;
+
+  function pickCard(){
+    const pool = state.cards.filter(c => String(c).trim());
+    if(!pool.length) return '……（字卡库是空的，去设置里添几张吧）';
+    if(pool.length === 1) return pool[0];
+    let card = pool[Math.floor(Math.random() * pool.length)];
+    let guard = 0;
+    while(card === lastCard && guard++ < 24){
+      card = pool[Math.floor(Math.random() * pool.length)];
+    }
+    lastCard = card;
+    return card;
+  }
+
+  /* ================= 回复调度 ================= */
+  function randDelayMs(){
+    let a = clamp(Number(state.minDelay) || 1, 1, 600);
+    let b = clamp(Number(state.maxDelay) || 1, 1, 600);
+    if(b < a){ const t = a; a = b; b = t; }
+    return (a + Math.random() * (b - a)) * 1000;
+  }
+
+  let replyTimers = [];
+
+  function clearReplies(){
+    replyTimers.forEach(t => clearTimeout(t));
+    replyTimers = [];
+    hideTyping();
+    setStatus('');
+  }
+
+  function scheduleReply(){
+    clearReplies();
+
+    let count = randInt(state.minReplies, state.maxReplies);
+    if(!isFinite(count) || count < 1) count = 1;
+    count = clamp(count, 1, 6);
+
+    const texts = [];
+    for(let i = 0; i < count; i++) texts.push(pickCard());
+
+    let acc = randDelayMs();
+
+    setStatus('正在输入…');
+    showTyping();
+
+    texts.forEach((tx, i) => {
+      const id = setTimeout(() => {
+        hideTyping();
+        pushMessage('them', tx);
+
+        if(i < texts.length - 1){
+          showTyping();
+        }else{
+          setStatus('');
+          maybeTriggerVideoCall();
+        }
+      }, acc);
+      replyTimers.push(id);
+
+      acc += 400 + Math.random() * 700;
+    });
+  }
+
+  /* ================= 发送 ================= */
+  function autoGrow(){
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 118) + 'px';
+  }
+
+  function sendText(){
+    const text = inputEl.value.trim();
+    if(!text) return;
+    inputEl.value = '';
+    autoGrow();
+    pushMessage('me', text);
+    scheduleReply();
+  }
+
+  inputEl.addEventListener('input', autoGrow);
+  inputEl.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){
+      e.preventDefault();
+      sendText();
+    }
+  });
+  sendBtn.addEventListener('click', sendText);
+
+  /* ================= 覆盖层 ================= */
+  function openLayer(id){
+    const el = $(id);
+    if(!el) return;
+    if(id === 'settingsLayer') syncSettings();
+    el.classList.add('open');
+  }
+
+  function closeLayer(id){
+    const el = $(id);
+    if(el) el.classList.remove('open');
+  }
+
+  document.querySelectorAll('[data-back]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layer = btn.closest('.layer');
+      if(layer) layer.classList.remove('open');
+    });
+  });
+
+  $('btnSettings').addEventListener('click', () => openLayer('settingsLayer'));
+  $('btnVideoCall').addEventListener('click', startManualCall);
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeLayer('settingsLayer');
+  });
+
+  /* ================= 设置同步 ================= */
+  function syncSettings(){
+    $('setName').value = state.charName || '';
+    $('setNote').value = state.note || '';
+    $('setMin').value = state.minDelay;
+    $('setMax').value = state.maxDelay;
+    $('setMinReply').value = state.minReplies;
+    $('setMaxReply').value = state.maxReplies;
+    $('setTyping').checked = state.showTyping !== false;
+    $('setShowAvatars').checked = state.showAvatars !== false;
+    $('setTimestamp').checked = state.showTimestamp !== false;
+
+    const sc = Math.round(clamp(Number(state.bubbleScale) || 1, 0.7, 1.6) * 100);
+    $('setBubbleScale').value = sc;
+    $('bubbleScaleVal').textContent = sc + '%';
+
+    $('setVideoPct').value = state.videoFreqPct;
+    $('videoPctVal').textContent = Math.round(state.videoFreqPct) + '%';
+    $('setCallWaitMin').value = state.callWaitMin;
+    $('setCallWaitMax').value = state.callWaitMax;
+    $('setCallRejectPct').value = state.callRejectPct;
+    $('callRejectPctVal').textContent = Math.round(state.callRejectPct) + '%';
+
+    $('cardsEditor').value = state.cards.join('\n');
+    $('setCustomCSS').value = state.customCSS || '';
+    updateCardsCount();
+  }
+
+  function updateCardsCount(){
+    const n = state.cards.filter(c => String(c).trim()).length;
+    $('cardsCount').textContent = n ? ('共 ' + n + ' 张字卡') : '还没有字卡';
+  }
+
+  /* ================= 设置事件 ================= */
+  $('setName').addEventListener('input', e => {
+    state.charName = e.target.value;
+    renderHeader();
+    renderAllMessages();
+    save();
+  });
+
+  $('setNote').addEventListener('input', e => {
+    state.note = e.target.value;
+    renderHeader();
+    save();
+  });
+
+  function bindDelayInput(id, key){
+    const el = $(id);
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      if(!isFinite(v)) return;
+      state[key] = clamp(v, 1, 600);
+      save();
+    });
+    el.addEventListener('change', () => {
+      let v = parseFloat(el.value);
+      if(!isFinite(v)) v = 1;
+      v = clamp(v, 1, 600);
+      state[key] = v;
+      el.value = v;
+      if(state.minDelay > state.maxDelay){
+        const t = state.minDelay;
+        state.minDelay = state.maxDelay;
+        state.maxDelay = t;
+        $('setMin').value = state.minDelay;
+        $('setMax').value = state.maxDelay;
+      }
+      save();
+    });
+  }
+  bindDelayInput('setMin', 'minDelay');
+  bindDelayInput('setMax', 'maxDelay');
+
+  function bindCountInput(id, key){
+    const el = $(id);
+    el.addEventListener('change', () => {
+      let v = parseInt(el.value, 10);
+      if(!isFinite(v)) v = 1;
+      v = clamp(v, 1, 6);
+      state[key] = v;
+      el.value = v;
+      if(state.minReplies > state.maxReplies){
+        const t = state.minReplies;
+        state.minReplies = state.maxReplies;
+        state.maxReplies = t;
+        $('setMinReply').value = state.minReplies;
+        $('setMaxReply').value = state.maxReplies;
+      }
+      save();
+    });
+  }
+  bindCountInput('setMinReply', 'minReplies');
+  bindCountInput('setMaxReply', 'maxReplies');
+
+  $('setTyping').addEventListener('change', e => {
+    state.showTyping = e.target.checked;
+    if(!state.showTyping) hideTyping();
+    save();
+  });
+
+  $('setShowAvatars').addEventListener('change', e => {
+    state.showAvatars = e.target.checked;
+    applyAvatars();
+    save();
+  });
+
+  $('setTimestamp').addEventListener('change', e => {
+    state.showTimestamp = e.target.checked;
+    renderAllMessages();
+    save();
+  });
+
+  $('setBubbleScale').addEventListener('input', e => {
+    const v = clamp((parseInt(e.target.value, 10) || 100) / 100, 0.7, 1.6);
+    state.bubbleScale = v;
+    $('bubbleScaleVal').textContent = Math.round(v * 100) + '%';
+    applyBubbleSize();
+    save();
+  });
+
+  $('setVideoPct').addEventListener('input', e => {
+    state.videoFreqPct = clamp(parseInt(e.target.value, 10) || 0, 0, 100);
+    $('videoPctVal').textContent = state.videoFreqPct + '%';
+    save();
+  });
+
+  function bindCallWaitInput(id, key){
+    const el = $(id);
+    el.addEventListener('change', () => {
+      let v = parseInt(el.value, 10);
+      if(!isFinite(v)) v = 4;
+      v = clamp(v, 1, 60);
+      state[key] = v;
+      el.value = v;
+      if(state.callWaitMin > state.callWaitMax){
+        const t = state.callWaitMin;
+        state.callWaitMin = state.callWaitMax;
+        state.callWaitMax = t;
+        $('setCallWaitMin').value = state.callWaitMin;
+        $('setCallWaitMax').value = state.callWaitMax;
+      }
+      save();
+    });
+  }
+  bindCallWaitInput('setCallWaitMin', 'callWaitMin');
+  bindCallWaitInput('setCallWaitMax', 'callWaitMax');
+
+  $('setCallRejectPct').addEventListener('input', e => {
+    state.callRejectPct = clamp(parseInt(e.target.value, 10) || 0, 0, 100);
+    $('callRejectPctVal').textContent = state.callRejectPct + '%';
+    save();
+  });
+
+  /* ---------- 字卡编辑 ---------- */
+  let cardsTimer = null;
+  $('cardsEditor').addEventListener('input', e => {
+    state.cards = e.target.value.split('\n').map(s => s.trim()).filter(Boolean);
+    lastCard = null;
+    updateCardsCount();
+    clearTimeout(cardsTimer);
+    cardsTimer = setTimeout(save, 400);
+  });
+
+  /* ---------- 字卡一键导出 ---------- */
+  function exportCards(){
+    const lines = state.cards.map(c => String(c).trim()).filter(Boolean);
+    if(!lines.length){ toast('没有可导出的字卡'); return; }
+
+    try{
+      const blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const d = new Date();
+      const fname = '字卡_' + d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate())
+                    + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.txt';
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setTimeout(() => { try{ URL.revokeObjectURL(url); }catch(e){} }, 3000);
+      toast('已导出 ' + lines.length + ' 张字卡');
+    }catch(err){
+      toast('导出失败');
+    }
+  }
+  $('exportCards').addEventListener('click', exportCards);
+
+  /* ---------- 字卡一键导入 ---------- */
+  $('importCards').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+
+    const fr = new FileReader();
+    fr.onerror = () => toast('文件读取失败');
+    fr.onload = () => {
+      const text = String(fr.result || '');
+      let lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+      /* 兼容 JSON 数组格式 */
+      if(!lines.length){
+        const trimmed = text.trim();
+        if(trimmed.startsWith('[')){
+          try{
+            const arr = JSON.parse(trimmed);
+            if(Array.isArray(arr)) lines = arr.map(x => String(x).trim()).filter(Boolean);
+          }catch(err){}
+        }
+      }
+
+      if(!lines.length){ toast('文件里没有读到内容'); return; }
+
+      /* 与现有字卡合并去重 */
+      const seen = new Set(state.cards.map(c => String(c).trim()));
+      let added = 0;
+      lines.forEach(l => {
+        if(!seen.has(l)){ seen.add(l); state.cards.push(l); added++; }
+      });
+
+      lastCard = null;
+      $('cardsEditor').value = state.cards.join('\n');
+      updateCardsCount();
+      save();
+      toast(added ? ('已导入 ' + added + ' 张字卡') : '没有新字卡（全部重复）');
+    };
+    fr.readAsText(file, 'utf-8');
+  });
+
+  /* ---------- 字卡一键去重 ---------- */
+  $('dedupeCards').addEventListener('click', () => {
+    /* 同步编辑器里的当前内容 */
+    state.cards = $('cardsEditor').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+    const seen = new Set();
+    const out = [];
+    let removed = 0;
+
+    state.cards.forEach(c => {
+      const t = String(c).trim();
+      if(!t) return;
+      if(seen.has(t)){ removed++; return; }
+      seen.add(t);
+      out.push(t);
+    });
+
+    state.cards = out;
+    lastCard = null;
+    $('cardsEditor').value = out.join('\n');
+    updateCardsCount();
+    save();
+
+    toast(removed ? ('已去除 ' + removed + ' 张重复字卡') : '没有重复的字卡');
+  });
+
+  /* ---------- 自定义 CSS ---------- */
+  let cssTimer = null;
+  $('setCustomCSS').addEventListener('input', e => {
+    state.customCSS = e.target.value;
+    applyCustomCSS();
+    clearTimeout(cssTimer);
+    cssTimer = setTimeout(save, 400);
+  });
+
+  $('clearCustomCSS').addEventListener('click', () => {
+    state.customCSS = '';
+    $('setCustomCSS').value = '';
+    applyCustomCSS();
+    save();
+    toast('已清除自定义 CSS');
+  });
+
+  /* ---------- 头像 / 壁纸 ---------- */
+  $('setAvatar').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    try{
+      state.avatar = await readImage(file, 420, 'image/png');
+      renderHeader();
+      renderAllMessages();
+      save();
+      toast('头像已更新');
+    }catch(err){ toast('图片读取失败'); }
+  });
+
+  $('setMyAvatar').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    try{
+      state.myAvatar = await readImage(file, 420, 'image/png');
+      renderSelfView();
+      renderAllMessages();
+      save();
+      toast('我的头像已更新');
+    }catch(err){ toast('图片读取失败'); }
+  });
+
+  $('setWall').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    try{
+      state.wallpaper = await readImage(file, 1500, 'image/jpeg', 0.85);
+      renderWallpaper();
+      save();
+      toast('壁纸已更新');
+    }catch(err){ toast('图片读取失败'); }
+  });
+
+  $('clearWall').addEventListener('click', () => {
+    state.wallpaper = '';
+    renderWallpaper();
+    save();
+    toast('已恢复默认壁纸');
+  });
+
+  /* ================= 全部数据导出 / 导入 ================= */
+  function exportAllData(){
+    try{
+      const json = JSON.stringify(state, null, 2);
+      const blob = new Blob([json], { type:'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const d = new Date();
+      const fname = '字卡传讯备份_' + d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate())
+                    + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.json';
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setTimeout(() => { try{ URL.revokeObjectURL(url); }catch(e){} }, 3000);
+      toast('已导出全部数据');
+    }catch(err){
+      toast('导出失败，数据可能过大');
+    }
+  }
+  $('exportAll').addEventListener('click', exportAllData);
+
+  $('importAll').addEventListener('click', () => $('importAllFile').click());
+
+  $('importAllFile').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+
+    const fr = new FileReader();
+    fr.onerror = () => toast('文件读取失败');
+    fr.onload = () => {
+      let data;
+      try{
+        data = JSON.parse(String(fr.result || ''));
+      }catch(err){
+        toast('文件不是有效的 JSON');
+        return;
+      }
+      if(!data || typeof data !== 'object' || Array.isArray(data)){
+        toast('文件内容不是备份数据');
+        return;
+      }
+      if(!confirm('导入会覆盖当前全部数据（聊天、字卡、设置、头像、壁纸），确定继续吗？')) return;
+
+      try{
+        localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      }catch(err){
+        toast('数据过大，无法写入本机存储');
+        return;
+      }
+
+      endCall();
+      state = buildState(data);
+      lastCard = null;
+      clearReplies();
+      refreshAll();
+      toast('导入成功，已恢复全部数据');
+    };
+    fr.readAsText(file, 'utf-8');
+  });
+
+  $('clearChat').addEventListener('click', () => {
+    if(!confirm('确定要清空聊天记录吗？')) return;
+    state.messages = [];
+    clearReplies();
+    messagesEl.innerHTML = '';
+    emptyEl.classList.remove('hidden');
+    save();
+    toast('聊天记录已清空');
+  });
+
+  $('resetAll').addEventListener('click', () => {
+    if(!confirm('确定要恢复全部默认吗？聊天记录、头像、壁纸、字卡、自定义 CSS 都会被重置。')) return;
+    clearReplies();
+    endCall();
+    state = defaultState();
+    save();
+    refreshAll();
+    toast('已恢复默认');
+  });
+
+  /* ================= 视频通话 ================= */
+  const videoLayer    = $('videoLayer');
+  const callIncoming  = $('callIncoming');
+  const callOutgoing  = $('callOutgoing');
+  const callActive    = $('callActive');
+  const incomingAvatar= $('incomingAvatar');
+  const outgoingAvatar= $('outgoingAvatar');
+  const activeAvatar  = $('activeAvatar');
+  const incomingName  = $('incomingName');
+  const outgoingName  = $('outgoingName');
+  const activeName    = $('activeName');
+  const callTimeEl    = $('callTime');
+  const pip           = $('pipCall');
+
+  let callTimer = null;
+  let callOutTimer = null;
+  let callAutoEndTimer = null;
+  let callStartTs = 0;
+  let callSession = 0;
+  let callState = 'idle';
+
+  function syncCallIdentity(){
+    const display = displayName();
+    incomingName.textContent = display;
+    outgoingName.textContent = display;
+    activeName.textContent = display;
+
+    const src = state.avatar;
+
+    [incomingAvatar, outgoingAvatar, activeAvatar].forEach(box => {
+      const img = box.querySelector('img');
+      const span = box.querySelector('span');
+      if(src){
+        img.src = src;
+        img.hidden = false;
+        span.hidden = true;
+      }else{
+        img.hidden = true;
+        img.removeAttribute('src');
+        span.hidden = false;
+        span.textContent = display.charAt(0) || '✦';
+      }
+    });
+
+    $('pipName').textContent = display;
+    const pav = $('pipAvatar');
+    const pimg = pav.querySelector('img');
+    const pspan = pav.querySelector('span');
+    if(src){
+      pimg.src = src;
+      pimg.hidden = false;
+      pspan.hidden = true;
+    }else{
+      pimg.hidden = true;
+      pimg.removeAttribute('src');
+      pspan.hidden = false;
+      pspan.textContent = display.charAt(0) || '✦';
+    }
+  }
+
+  function showOnly(screen){
+    [callIncoming, callOutgoing, callActive].forEach(el => {
+      if(el) el.classList.toggle('show', el === screen);
+    });
+  }
+
+  function logCallEvent(text){
+    if(!text) return;
+    pushMessage('system', text);
+  }
+
+  function openIncomingCall(){
+    if(callState !== 'idle') return;
+    callState = 'incoming';
+    callSession++;
+    syncCallIdentity();
+    showOnly(callIncoming);
+    videoLayer.classList.add('open');
+    logCallEvent(' 收到视频通话来电');
+  }
+
+  function acceptCall(){
+    if(callState !== 'incoming') return;
+    callState = 'active';
+    callSession++;
+    showOnly(callActive);
+    videoLayer.classList.add('open');
+    startCallTimer();
+  }
+
+  function startCallTimer(){
+    callStartTs = Date.now();
+    if(callTimer) clearInterval(callTimer);
+    callTimeEl.textContent = '00:00';
+    $('pipTime').textContent = '00:00';
+    callTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - callStartTs) / 1000);
+      const txt = pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+      callTimeEl.textContent = txt;
+      $('pipTime').textContent = txt;
+    }, 400);
+  }
+
+  /* 结束通话，reason 决定写入聊天页的记录内容 */
+  function endCall(reason){
+    const prevState = callState;
+    const wasActive = (prevState === 'active');
+    const dur = (wasActive && callStartTs)
+      ? Math.max(0, Math.floor((Date.now() - callStartTs) / 1000))
+      : 0;
+
+    if(callTimer){ clearInterval(callTimer); callTimer = null; }
+    if(callOutTimer){ clearTimeout(callOutTimer); callOutTimer = null; }
+    if(callAutoEndTimer){ clearTimeout(callAutoEndTimer); callAutoEndTimer = null; }
+
+    callSession++;
+    callState = 'idle';
+
+    [callIncoming, callOutgoing, callActive].forEach(el => { if(el) el.classList.remove('show'); });
+    videoLayer.classList.remove('open');
+    resetMiniBtns();
+    pip.classList.remove('show');
+    pip.style.left = ''; pip.style.top = ''; pip.style.right = '';
+
+    let text = '';
+    if(reason === 'rejected')         text = ' 对方已拒接';
+    else if(reason === 'declined')    text = ' 已拒绝来电';
+    else if(reason === 'canceled')    text = ' 已取消呼叫';
+    else if(wasActive)                text = ' 通话结束 · ' + pad2(Math.floor(dur / 60)) + ':' + pad2(dur % 60);
+    else if(prevState === 'incoming') text = ' 未接来电';
+    else if(prevState === 'outgoing') text = ' 已取消呼叫';
+
+    if(text) logCallEvent(text);
+  }
+
+  function resetMiniBtns(){
+    $('btnMute').classList.remove('off');
+    $('btnCam').classList.remove('off');
+  }
+
+  function minimizeCall(){
+    if(callState !== 'active') return;
+    syncCallIdentity();
+    callActive.classList.remove('show');
+    videoLayer.classList.remove('open');
+    pip.classList.add('show');
+    toast('已最小化，点击胶囊可回到通话');
+  }
+
+  function restoreCall(){
+    if(callState !== 'active') return;
+    pip.classList.remove('show');
+    videoLayer.classList.add('open');
+    callActive.classList.add('show');
+  }
+
+  $('btnMinimize').addEventListener('click', minimizeCall);
+
+  /* 胶囊拖动 */
+  let pipDrag = null;
+  let pipMoved = false;
+
+  pip.addEventListener('pointerdown', e => {
+    if(e.target.closest('.pip-end')) return;
+    e.preventDefault();
+    pipMoved = false;
+    pipDrag = { x: e.clientX, y: e.clientY, l: pip.offsetLeft, t: pip.offsetTop };
+    try{ pip.setPointerCapture(e.pointerId); }catch(err){}
+  });
+
+  pip.addEventListener('pointermove', e => {
+    if(!pipDrag) return;
+    const dx = e.clientX - pipDrag.x;
+    const dy = e.clientY - pipDrag.y;
+    if(Math.abs(dx) > 5 || Math.abs(dy) > 5) pipMoved = true;
+    const w = appEl.clientWidth, h = appEl.clientHeight;
+    let l = pipDrag.l + dx;
+    let t = pipDrag.t + dy;
+    l = Math.max(6, Math.min(l, w - pip.offsetWidth - 6));
+    t = Math.max(6, Math.min(t, h - pip.offsetHeight - 6));
+    pip.style.left = l + 'px';
+    pip.style.top = t + 'px';
+    pip.style.right = 'auto';
+  });
+
+  pip.addEventListener('pointerup', () => { pipDrag = null; });
+  pip.addEventListener('pointercancel', () => { pipDrag = null; });
+
+  pip.addEventListener('click', e => {
+    if(e.target.closest('.pip-end')) return;
+    if(pipMoved) return;
+    restoreCall();
+  });
+
+  $('pipEnd').addEventListener('click', e => {
+    e.stopPropagation();
+    endCall();
+  });
+
+  $('btnAccept').addEventListener('click', acceptCall);
+  $('btnDecline').addEventListener('click', () => endCall('declined'));
+  $('btnHangup').addEventListener('click', () => endCall());
+  $('btnCancelCall').addEventListener('click', () => {
+    endCall('canceled');
+    toast('已取消呼叫');
+  });
+
+  $('btnMute').addEventListener('click', function(){
+    this.classList.toggle('off');
+    toast(this.classList.contains('off') ? '已静音' : '已取消静音');
+  });
+  $('btnCam').addEventListener('click', function(){
+    this.classList.toggle('off');
+    toast(this.classList.contains('off') ? '摄像头已关闭' : '摄像头已开启');
+  });
+
+  /* 手动拨打 */
+  function startManualCall(){
+    if(callState !== 'idle') return;
+
+    callState = 'outgoing';
+    callSession++;
+    const mySession = callSession;
+    syncCallIdentity();
+
+    let waitMin = clamp(Number(state.callWaitMin) || 4, 1, 60);
+    let waitMax = clamp(Number(state.callWaitMax) || 10, 1, 60);
+    if(waitMax < waitMin){ const t = waitMin; waitMin = waitMax; waitMax = t; }
+    const waitSec = waitMin + Math.random() * (waitMax - waitMin);
+
+    $('outgoingSub').textContent = '正在呼叫…';
+    showOnly(callOutgoing);
+    videoLayer.classList.add('open');
+
+    logCallEvent(' 视频通话已呼出');
+
+    if(callOutTimer){ clearTimeout(callOutTimer); callOutTimer = null; }
+
+    callOutTimer = setTimeout(() => {
+      callOutTimer = null;
+      if(callState !== 'outgoing' || mySession !== callSession) return;
+
+      const rejPct = clamp(Number(state.callRejectPct) || 0, 0, 100);
+      if(rejPct > 0 && Math.random() * 100 < rejPct){
+        $('outgoingSub').textContent = '对方已拒绝';
+        callOutTimer = setTimeout(() => {
+          callOutTimer = null;
+          if(callState === 'outgoing' && mySession === callSession){
+            endCall('rejected');
+            toast('对方已拒绝接听');
+          }
+        }, 1300);
+        return;
+      }
+
+      callState = 'active';
+      callSession++;
+      const newSession = callSession;
+      showOnly(callActive);
+      startCallTimer();
+
+      /* 55 秒后自动挂断，模拟对方有事 */
+      callAutoEndTimer = setTimeout(() => {
+        callAutoEndTimer = null;
+        if(callState === 'active' && newSession === callSession){
+          endCall();
+          toast('对方已挂断');
+        }
+      }, 55000);
+    }, waitSec * 1000);
+  }
+
+  /* TA 主动打来 */
+  function maybeTriggerVideoCall(){
+    const p = clamp(Number(state.videoFreqPct) || 0, 0, 100) / 100;
+    if(p > 0 && Math.random() < p && callState === 'idle'){
+      setTimeout(() => {
+        if(callState === 'idle') openIncomingCall();
+      }, 900);
+    }
+  }
+
+  /* ================= 刷新 ================= */
+  function refreshAll(){
+    renderHeader();
+    renderWallpaper();
+    renderSelfView();
+    applyCustomCSS();
+    applyBubbleSize();
+    applyAvatars();
+    renderAllMessages();
+    syncSettings();
+  }
+
+  function init(){
+    refreshAll();
+    autoGrow();
+    setStatus('');
+    window.addEventListener('resize', () => scrollToBottom(false));
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
